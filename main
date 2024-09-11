@@ -1,0 +1,276 @@
+import pygame
+import random
+
+# Inicializar Pygame
+pygame.init()
+
+# Dimensiones de la pantalla
+ancho = 800
+alto = 700
+play_ancho = 300  # 300 // 10 = 30 ancho de bloque
+play_alto = 600  # 600 // 20 = 20 alto de bloque
+bloque_tamaño = 30
+
+top_left_x = (ancho - play_ancho) // 2
+top_left_y = alto - play_alto
+
+# Formatos de las piezas
+S = [['.....',
+      '.....',
+      '..00.',
+      '.00..',
+      '.....'],
+     ['.....',
+      '..0..',
+      '..00.',
+      '...0.',
+      '.....']]
+
+Z = [['.....',
+      '.....',
+      '.00..',
+      '..00.',
+      '.....'],
+     ['.....',
+      '..0..',
+      '.00..',
+      '.0...',
+      '.....']]
+
+I = [['..0..',
+      '..0..',
+      '..0..',
+      '..0..',
+      '.....'],
+     ['.....',
+      '0000.',
+      '.....',
+      '.....',
+      '.....']]
+
+O = [['.....',
+      '.....',
+      '.00..',
+      '.00..',
+      '.....']]
+
+J = [['.....',
+      '.0...',
+      '.000.',
+      '.....',
+      '.....'],
+     ['.....',
+      '..00.',
+      '..0..',
+      '..0..',
+      '.....'],
+     ['.....',
+      '.....',
+      '.000.',
+      '...0.',
+      '.....'],
+     ['.....',
+      '..0..',
+      '..0..',
+      '.00..',
+      '.....']]
+
+L = [['.....',
+      '...0.',
+      '.000.',
+      '.....',
+      '.....'],
+     ['.....',
+      '..0..',
+      '..0..',
+      '..00.',
+      '.....'],
+     ['.....',
+      '.....',
+      '.000.',
+      '.0...',
+      '.....'],
+     ['.....',
+      '.00..',
+      '..0..',
+      '..0..',
+      '.....']]
+
+T = [['.....',
+      '..0..',
+      '.000.',
+      '.....',
+      '.....'],
+     ['.....',
+      '..0..',
+      '..00.',
+      '..0..',
+      '.....'],
+     ['.....',
+      '.....',
+      '.000.',
+      '..0..',
+      '.....'],
+     ['.....',
+      '..0..',
+      '.00..',
+      '..0..',
+      '.....']]
+
+# Lista de formas y sus colores
+formas = [S, Z, I, O, J, L, T]
+colores = [(0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 255, 0), (255, 165, 0), (0, 0, 255), (128, 0, 128)]
+
+# Clase para las piezas
+class Pieza(object):
+    filas = 20  # y
+    columnas = 10  # x
+
+    def __init__(self, columna, fila, forma):
+        self.x = columna
+        self.y = fila
+        self.forma = forma
+        self.color = colores[formas.index(forma)]
+        self.rotacion = 0
+
+def crear_grid(bloqueado_pos={}):
+    grid = [[(0, 0, 0) for _ in range(10)] for _ in range(20)]
+
+    for i in range(len(grid)):
+        for j in range(len(grid[i])):
+            if (j, i) in bloqueado_pos:
+                c = bloqueado_pos[(j, i)]
+                grid[i][j] = c
+    return grid
+
+def convertir_formato(figura):
+    posiciones = []
+    formato = figura.forma[figura.rotacion % len(figura.forma)]
+
+    for i, linea in enumerate(formato):
+        fila = list(linea)
+        for j, columna in enumerate(fila):
+            if columna == '0':
+                posiciones.append((figura.x + j, figura.y + i))
+
+    for i, pos in enumerate(posiciones):
+        posiciones[i] = (pos[0] - 2, pos[1] - 4)
+
+    return posiciones
+
+def espacio_valido(figura, grid):
+    posiciones_aceptadas = [[(j, i) for j in range(10) if grid[i][j] == (0, 0, 0)] for i in range(20)]
+    posiciones_aceptadas = [j for sub in posiciones_aceptadas for j in sub]
+
+    formateado = convertir_formato(figura)
+
+    for pos in formateado:
+        if pos not in posiciones_aceptadas:
+            if pos[1] > -1:
+                return False
+    return True
+
+def perder(posiciones):
+    for pos in posiciones:
+        x, y = pos
+        if y < 1:
+            return True
+    return False
+
+def obtener_forma():
+    return Pieza(5, 0, random.choice(formas))
+
+def dibujar_texto_medio(superficie, texto, tamaño, color):
+    fuente = pygame.font.SysFont('comicsans', tamaño, bold=True)
+    label = fuente.render(texto, 1, color)
+
+    superficie.blit(label, (top_left_x + play_ancho / 2 - (label.get_width() / 2), top_left_y + play_alto / 2 - label.get_height() / 2))
+
+def dibujar_grid(superficie, grid):
+    sx = top_left_x
+    sy = top_left_y
+
+    for i in range(len(grid)):
+        pygame.draw.line(superficie, (128, 128, 128), (sx, sy + i * bloque_tamaño), (sx + play_ancho, sy + i * bloque_tamaño))
+        for j in range(len(grid[i])):
+            pygame.draw.line(superficie, (128, 128, 128), (sx + j * bloque_tamaño, sy), (sx + j * bloque_tamaño, sy + play_alto))
+
+def limpiar_filas(grid, bloqueado):
+    incremento = 0
+    for i in range(len(grid) - 1, -1, -1):
+        fila = grid[i]
+        if (0, 0, 0) not in fila:
+            incremento += 1
+            ind = i
+            for j in range(len(fila)):
+                try:
+                    del bloqueado[(j, i)]
+                except:
+                    continue
+    if incremento > 0:
+        for key in sorted(list(bloqueado), key=lambda x: x[1])[::-1]:
+            x, y = key
+            if y < ind:
+                nueva_llave = (x, y + incremento)
+                bloqueado[nueva_llave] = bloqueado.pop(key)
+
+    return incremento
+
+def dibujar_ventana(superficie, grid):
+    superficie.fill((0, 0, 0))
+
+    pygame.font.init()
+    fuente = pygame.font.SysFont('comicsans', 60)
+    label = fuente.render('Tetris', 1, (255, 255, 255))
+
+    superficie.blit(label, (top_left_x + play_ancho / 2 - (label.get_width() / 2), 30))
+
+    for i in range(len(grid)):
+        for j in range(len(grid[i])):
+            pygame.draw.rect(superficie, grid[i][j], (top_left_x + j * bloque_tamaño, top_left_y + i * bloque_tamaño, bloque_tamaño, bloque_tamaño), 0)
+
+    dibujar_grid(superficie, grid)
+    pygame.draw.rect(superficie, (255, 0, 0), (top_left_x, top_left_y, play_ancho, play_alto), 5)
+
+def main():
+    bloqueado_pos = {}
+    grid = crear_grid(bloqueado_pos)
+
+    cambiar_pieza = False
+    correr = True
+    pieza_actual = obtener_forma()
+    pieza_siguiente = obtener_forma()
+    reloj = pygame.time.Clock()
+    caida_tiempo = 0
+    nivel_dificultad = 0.27
+
+    while correr:
+        grid = crear_grid(bloqueado_pos)
+        caida_tiempo += reloj.get_rawtime()
+        reloj.tick()
+
+        if caida_tiempo / 1000 >= nivel_dificultad:
+            caida_tiempo = 0
+            pieza_actual.y += 1
+            if not (espacio_valido(pieza_actual, grid)) and pieza_actual.y > 0:
+                pieza_actual.y -= 1
+                cambiar_pieza = True
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                correr = False
+                pygame.display.quit()
+                quit()
+
+            if evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_LEFT:
+                    pieza_actual.x -= 1
+                    if not espacio_valido(pieza_actual, grid):
+                        pieza_actual.x += 1
+                if evento.key == pygame.K_RIGHT:
+                    pieza_actual.x += 1
+                    if not espacio_valido(pieza_actual, grid):
+                        pieza_actual.x -= 1
+                if evento.key == pygame.K_DOWN:
+                    pieza_actual.y += 1
+                    if not espacio_valido
